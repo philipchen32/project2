@@ -79,7 +79,28 @@ private[sql] class DiskPartition (
     * @param row the [[Row]] we are adding
     */
   def insert(row: Row) = {
-    /* IMPLEMENT THIS METHOD */
+    if (inputClosed){
+      throw new SparkException("Input closed. Cannot insert row.")
+    }
+    else{
+      val partition_size: Int = measurePartitionSize()
+
+      val row_as_list: JavaArrayList[Row] = new JavaArrayList[Row]
+      row_as_list.add(row)
+
+      //turn ArrayList into an array so we can obtain its size
+      val rowlist_size = CS143Utils.getBytesFromList(row_as_list).size
+
+      if (partition_size + rowlist_size > blockSize) { //if adding row to 'data' would be larger than a block
+        spillPartitionToDisk() //send 'data' to disk, sets writtenToDisk = true
+        data.clear()
+        data.add(row)
+      }
+      else{
+        writtenToDisk = false
+        data.add(row)
+      }
+    }
   }
 
   /**
@@ -152,7 +173,11 @@ private[sql] class DiskPartition (
     * also be closed.
     */
   def closeInput() = {
-    /* IMPLEMENT THIS METHOD */
+    if(!data.isEmpty()){
+      spillPartitionToDisk()
+      data.clear()
+    }
+    outStream.close()
     inputClosed = true
   }
 
